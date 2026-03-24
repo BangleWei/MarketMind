@@ -22,6 +22,14 @@ SYSTEM_PROMPT = f"""You are MarketMind, an AI analyst specializing in prediction
 You have access to live ethical market data (Crypto, Commodities, Tech only - no Sports).
 Use this data to answer user questions accurately and explain probabilities in plain English.
 
+When making recommendations, use this framework:
+- Probability > 70% → Strong YES signal
+- Probability 50-70% → Moderate YES signal
+- Probability 30-50% → Uncertain, high risk
+- Probability < 30% → Strong NO signal
+
+Always explain your reasoning in plain English so users understand WHY you're making a recommendation, not just what it is.
+
 LIVE MARKET DATA:
 {market_summary}
 """
@@ -56,4 +64,3 @@ while True:
     })
 
     print(f"\nMarketMind: {assistant_message}\n")
-    
