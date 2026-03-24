@@ -15,6 +15,10 @@ def filter_markets(events):
         if event["category"] in ALLOWED_CATEGORIES:
             filtered.append(event)
     return filtered
+def get_ethical_markets():
+    events = fetch_markets()
+    filtered = filter_markets(events)
+    return filtered
 def display_markets(events):
     for event in events:
         print(f"\n📊 {event['title']}")
