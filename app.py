@@ -89,6 +89,21 @@ if user_input := st.chat_input("Ask about a market... e.g., 'What's a strong YES
                 messages=messages_for_api
             )
             assistant_response = response.choices[0].message.content
-            st.markdown(assistant_response)
             
-    st.session_state.conversation_history.append({"role": "assistant", "content": assistant_response})
+            display_text = assistant_response
+            market_to_trade = None
+            
+            if "[EXECUTE_TRADE:" in assistant_response:
+                parts = assistant_response.split("[EXECUTE_TRADE:")
+                display_text = parts[0].strip()
+                
+                market_to_trade = parts[1].replace("]", "").strip()
+
+            st.markdown(display_text)
+            
+            if market_to_trade:
+                st.info(f"⚡ MarketMind recommends executing a trade on: **{market_to_trade}**")
+                if st.button("Execute Trade Now", type="primary"):
+                    st.success(f"Successfully simulated trade on {market_to_trade}!")
+            
+    st.session_state.conversation_history.append({"role": "assistant", "content": display_text})
