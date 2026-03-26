@@ -329,7 +329,7 @@ with st.sidebar:
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
-st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × LOCAL QUANT MATH")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE")
 
 all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
 total_markets = len(all_contracts)
@@ -341,8 +341,8 @@ strong_yes    = sum(1 for p in valid_prices if p >= 0.7)
 col1,col2,col3,col4 = st.columns(4)
 for col, label, value, cls in [
     (col1,"MARKETS",str(total_markets),"neu"),
-    (col2,"TOP PROB",f"{top_prob}%","up"),
-    (col3,"AVG PROB",f"{avg_prob}%","neu"),
+    (col2,"TOP PROBABILITY",f"{top_prob}%","up"),
+    (col3,"AVG PROBABILITY",f"{avg_prob}%","neu"),
     (col4,"STRONG YES",str(strong_yes),"up"),
 ]:
     with col:
