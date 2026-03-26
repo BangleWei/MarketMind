@@ -11,12 +11,11 @@ import numpy as np
 from market_data import get_ethical_markets
 
 # ─── 0. PAGE CONFIG ────────────────────────────────────────────────────────────
-# ─── 0. PAGE CONFIG ────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="MarketMind Terminal", 
     page_icon="🧠", 
     layout="wide", 
-    initial_sidebar_state="expanded"  # <--- THIS FORCES IT OPEN
+    initial_sidebar_state="expanded" 
 )
 st.markdown("""
 <style>
