@@ -15,8 +15,9 @@ st.set_page_config(
     page_title="MarketMind Terminal", 
     page_icon="🧠", 
     layout="wide", 
-    initial_sidebar_state="expanded" 
+    initial_sidebar_state="expanded"
 )
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -37,7 +38,6 @@ st.markdown("""
     max-width: 260px !important;
 }
 /* Apply font to sidebar, but exempt Streamlit's icon fonts */
-/* Apply font to sidebar, but exempt Streamlit's icon fonts */
 [data-testid="stSidebar"] *:not(.material-symbols-rounded) { 
     font-family: 'JetBrains Mono', monospace !important; 
 }
@@ -45,18 +45,8 @@ st.markdown("""
 /* Completely hide the ghost text / collapse button for a cleaner terminal */
 [data-testid="stSidebarCollapseButton"] { 
     display: none !important; 
-}[data-testid="stSidebar"] *:not(.material-symbols-rounded):not(svg) { 
-    font-family: 'JetBrains Mono', monospace !important; 
 }
 
-/* Style the sidebar toggle arrow */
-[data-testid="stSidebarCollapseButton"] {
-    color: #8b949e !important;
-    background-color: transparent !important;
-}
-[data-testid="stSidebarCollapseButton"]:hover {
-    color: #f0a732 !important;
-}
 [data-testid="stSidebar"] h1 {
     font-size: 11px !important;
     font-weight: 700 !important;
@@ -156,7 +146,7 @@ div[data-testid="stMetricDelta"] > div {
 .badge-yes { background: #0f2d0f; color: #39d353; }
 .badge-no  { background: #2d0f0f; color: #f85149; }
 
-/* Analyze button */
+/* Analyze button main area */
 div[data-testid="stButton"] button {
     background: transparent !important;
     border: 1px solid #30363d !important;
@@ -238,6 +228,9 @@ if "conversation_history"  not in st.session_state: st.session_state.conversatio
 if "pending_query"         not in st.session_state: st.session_state.pending_query         = None
 if "active_query"          not in st.session_state: st.session_state.active_query          = None
 if "cached_response"       not in st.session_state: st.session_state.cached_response       = None
+if "baseline_prices"       not in st.session_state: st.session_state.baseline_prices       = {}
+if "alerts_triggered"      not in st.session_state: st.session_state.alerts_triggered      = set()
+
 if "market_data"           not in st.session_state:
     with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
@@ -274,54 +267,7 @@ def create_gauge_chart(probability):
         font={'color': "#c9d1d9", 'family': 'JetBrains Mono'}
     )
     return fig
-def create_mc_chart(top_p, kelly_pct):
-    # Simulate bankroll growth: 100 alternate realities, 50 trades each
-    paths = 100
-    steps = 50
-    bankroll = np.zeros((paths, steps + 1))
-    bankroll[:, 0] = 1000 # Starting bankroll: $1,000
 
-    # Convert Kelly percentage to a decimal fraction
-    f = kelly_pct / 100.0 if kelly_pct > 0 else 0.05 # Minimum 5% bet if Kelly is 0 just to visualize variance
-    b = (1 / top_p) - 1 if top_p > 0 else 1 # Implied odds
-
-    # Generate the simulated price paths
-    for i in range(paths):
-        outcomes = np.random.binomial(1, top_p, steps)
-        for t in range(steps):
-            bet_size = bankroll[i, t] * f
-            if outcomes[t] == 1:
-                bankroll[i, t+1] = bankroll[i, t] + bet_size * b
-            else:
-                bankroll[i, t+1] = bankroll[i, t] - bet_size
-
-    fig = go.Figure()
-    
-    # Plot all 100 alternate reality paths
-    for i in range(paths):
-        fig.add_trace(go.Scatter(
-            x=list(range(steps + 1)), y=bankroll[i], mode='lines',
-            line=dict(color='rgba(240, 167, 50, 0.03)', width=1),
-            showlegend=False, hoverinfo='skip'
-        ))
-    
-    # Plot the Mean Expected path
-    mean_path = np.mean(bankroll, axis=0)
-    fig.add_trace(go.Scatter(
-        x=list(range(steps + 1)), y=mean_path, mode='lines',
-        line=dict(color='#39d353', width=3), name='Mean Bankroll Projection'
-    ))
-
-    fig.update_layout(
-        title={'text': "MONTE CARLO: 50-STEP KELLY BANKROLL PROJECTION", 'font': {'color': '#484f58', 'size': 11, 'family': 'JetBrains Mono'}},
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        font={'color': "#c9d1d9", 'family': 'JetBrains Mono'},
-        xaxis=dict(showgrid=True, gridcolor='#21262d', title="Trades Executed"),
-        yaxis=dict(showgrid=True, gridcolor='#21262d', title="Projected Capital ($)"),
-        height=320, margin=dict(l=20, r=20, t=40, b=20),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)")
-    )
-    return fig
 # ─── 3. WEBSOCKET ──────────────────────────────────────────────────────────────
 def start_websocket(symbol):
     def on_message(ws, message):
@@ -339,7 +285,7 @@ def start_websocket(symbol):
 # ─── 4. SIDEBAR (FRAGMENT) ─────────────────────────────────────────────────────
 with st.sidebar:
     st.title("MKTMIND")
-    st.caption("v1.0.8-live  |  Golden Matrix")
+    st.caption("v2.0.0-live  |  Golden Matrix")
     st.divider()
 
     @st.fragment
@@ -383,7 +329,7 @@ with st.sidebar:
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
-st.caption("INSTITUTIONAL ANALYSIS ENGINE")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × LOCAL QUANT MATH")
 
 all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
 total_markets = len(all_contracts)
@@ -395,8 +341,8 @@ strong_yes    = sum(1 for p in valid_prices if p >= 0.7)
 col1,col2,col3,col4 = st.columns(4)
 for col, label, value, cls in [
     (col1,"MARKETS",str(total_markets),"neu"),
-    (col2,"TOP PROBABILITY",f"{top_prob}%","up"),
-    (col3,"AVG PROBABILITY",f"{avg_prob}%","neu"),
+    (col2,"TOP PROB",f"{top_prob}%","up"),
+    (col3,"AVG PROB",f"{avg_prob}%","neu"),
     (col4,"STRONG YES",str(strong_yes),"up"),
 ]:
     with col:
@@ -431,14 +377,32 @@ for m in st.session_state.market_data:
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ─── 6. CHAT ───────────────────────────────────────────────────────────────────
+# --- AGENTIC VOLATILITY WATCHER ---
+# Silently monitors the WebSocket stream for >5% probability swings
+for m in st.session_state.market_data:
+    for c in m['contracts']:
+        sym = c.get("instrumentSymbol")
+        current_p = st.session_state.live_prices.get(sym)
+        if current_p is not None:
+            baseline = st.session_state.baseline_prices.get(sym)
+            if baseline is None:
+                st.session_state.baseline_prices[sym] = float(current_p)
+            else:
+                diff = float(current_p) - baseline
+                # If price swings 5% and we haven't alerted yet
+                if abs(diff) >= 0.05 and sym not in st.session_state.alerts_triggered:
+                    direction = "SPIKED" if diff > 0 else "DROPPED"
+                    alert_msg = f"🚨 **SYSTEM ALERT:** The `{c['label']}` market probability just {direction} by {abs(diff)*100:.1f}%. Would you like me to run a rapid risk assessment?"
+                    st.session_state.conversation_history.append({"role": "assistant", "content": alert_msg})
+                    st.session_state.alerts_triggered.add(sym)
+
 for msg in st.session_state.conversation_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
-        if "mc_chart" in msg:
-            st.plotly_chart(msg["mc_chart"], use_container_width=True)
 
+# Resolve user input — chat box wins, then pending_query from buttons
 if user_input := st.chat_input("Ask about any market or run quant analysis..."):
     pass
 else:
@@ -446,11 +410,35 @@ else:
     st.session_state.pending_query = None
 
 if user_input:
-    summary = "\n".join(
+    # --- DYNAMIC CONTEXT SIFTING (TOKEN OPTIMIZATION) ---
+    input_lower = user_input.lower()
+    filtered_markets = []
+    
+    # 1. Scan user prompt for matching sector/contract keywords
+    for m in st.session_state.market_data:
+        market_keywords = m['title'].lower().split()
+        for c in m['contracts']:
+            market_keywords.extend(c['label'].lower().split())
+            
+        market_keywords = [re.sub(r'[^a-z0-9]', '', kw) for kw in market_keywords]
+        
+        if any(kw in input_lower for kw in market_keywords if len(kw) > 2):
+            filtered_markets.append(m)
+
+    # 2. Fallback: If no specific keywords match, send all data for macro analysis
+    if not filtered_markets:
+        filtered_markets = st.session_state.market_data
+        context_note = "MACRO VIEW (All Markets)"
+    else:
+        context_note = f"MICRO VIEW ({len(filtered_markets)} Filtered Sectors)"
+
+    # 3. Build the optimized payload
+    summary = f"[{context_note}]\n" + "\n".join(
         f"{m['title']} — {c['label']}: "
         f"{st.session_state.live_prices.get(c.get('instrumentSymbol'), c['prices'].get('buy',{}).get('yes','N/A'))}"
-        for m in st.session_state.market_data for c in m['contracts']
+        for m in filtered_markets for c in m['contracts']
     )
+    # --- END SIFTING ---
 
     is_new_query = (user_input != st.session_state.active_query)
 
@@ -516,12 +504,7 @@ INSTRUCTIONS:
                         text = res.choices[0].message.content
                         st.markdown(text)
                         
-                        # Generate the dynamic visual!
-                        fig_mc = create_mc_chart(top_p, kelly_pct)
-                        st.plotly_chart(fig_mc, use_container_width=True)
-                        
-                        # Save the visual state so it doesn't disappear on refresh
-                        entry = {"role": "assistant", "content": text, "mc_chart": fig_mc}
+                        entry = {"role": "assistant", "content": text}
                         st.session_state.cached_response = entry
                         st.session_state.conversation_history.append(entry)
                     except Exception as e:
