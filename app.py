@@ -7,19 +7,11 @@ import websocket
 import json
 import plotly.graph_objects as go
 import re
+import google.generativeai as genai
 from market_data import get_ethical_markets
 
 # ─── 0. PAGE CONFIG ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="MarketMind Terminal", page_icon="🧠", layout="wide")
-
-# ─── DESIGN TOKENS ─────────────────────────────────────────────────────────────
-# BG_BASE    : deepest background — the "floor" of the terminal
-# BG_SURFACE : cards, sidebar, panels — one step above the floor
-# BG_RAISED  : hover states, active rows — one more step up
-# AMBER      : primary accent — all data labels, borders, highlights
-# GREEN      : positive delta / YES probability
-# RED        : negative delta / NO probability
-# MUTED      : secondary text, dividers
 
 st.markdown("""
 <style>
@@ -79,7 +71,7 @@ st.markdown("""
 div[data-testid="stMetric"] {
     background: #161b22;
     border: 1px solid #f0a732;
-    border-radius: 2px;           /* Sharp corners — terminals aren't soft */
+    border-radius: 2px;            
     padding: 10px 12px !important;
     margin-bottom: 4px;
 }
@@ -97,7 +89,6 @@ div[data-testid="stMetricValue"] > div {
     color: #ffffff !important;
     letter-spacing: -0.5px;
 }
-/* Delta (the "LIVE STREAM" text) */
 div[data-testid="stMetricDelta"] > div {
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 9px !important;
@@ -244,24 +235,7 @@ div[data-testid="stMetricDelta"] > div {
 }
 .stChatFloatingInputContainer { padding: 8px 0 !important; }
 
-/* Analyze button in table rows */
-div[data-testid="stButton"] button {
-    background: transparent !important;
-    border: 1px solid #30363d !important;
-    border-radius: 2px !important;
-    color: #484f58 !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 10px !important;
-    padding: 2px 8px !important;
-    height: 24px !important;
-    line-height: 1 !important;
-    transition: all 0.1s !important;
-}
-div[data-testid="stButton"] button:hover {
-    border-color: #f0a732 !important;
-    color: #f0a732 !important;
-    background: rgba(240,167,50,0.05) !important;
-}
+/* Sidebar market rows */
 .mkt-row {
     display: flex;
     justify-content: space-between;
@@ -283,10 +257,15 @@ div[data-testid="stButton"] button:hover {
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# Setup Gemini Sandbox Engine
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+deep_analyst = genai.GenerativeModel(
+    model_name='gemini-2.0-flash',
+    tools='code_execution' # Activates Python Sandbox
+)
+
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
-if "pending_query" not in st.session_state:
-    st.session_state.pending_query = None
 if "market_data" not in st.session_state:
     with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
@@ -358,7 +337,7 @@ def start_websocket(symbol):
 # ─── 4. SIDEBAR ────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("MKTMIND")
-    st.caption("v1.0.5-live  |  MarketMind Systems")
+    st.caption("v1.0.6-live  |  Auto-Routing Matrix")
     st.divider()
 
     market_titles = [m['title'] for m in st.session_state.market_data]
@@ -386,7 +365,6 @@ with st.sidebar:
     st.divider()
     st.subheader("ALL MARKETS")
 
-    # Flat market list — no expanders, every row visible at a glance
     rows_html = ""
     for contract in selected_market['contracts']:
         p = contract['prices'].get('buy', {}).get('yes', None)
@@ -404,9 +382,8 @@ with st.sidebar:
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
-st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ LLAMA 3.3 × GEMINI DATA")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × GEMINI SANDBOX")
 
-# Stats bar — quick-glance metrics across all loaded markets
 all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
 total_markets = len(all_contracts)
 prices        = [c['prices'].get('buy', {}).get('yes') for c in all_contracts]
@@ -431,49 +408,53 @@ for col, label, value, cls in [
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-# Table header
-cols = st.columns([3, 3, 1, 2, 1])
-for col, label in zip(cols, ["SECTOR", "CONTRACT", "SIGNAL", "PROBABILITY", ""]):
-    col.markdown(f"<div style='font-size:9px;color:#484f58;letter-spacing:1px;padding:4px 0;border-bottom:1px solid #21262d'>{label}</div>", unsafe_allow_html=True)
-
-# Table rows with analyze button
+table_rows = ""
 for m in st.session_state.market_data:
     for c in m['contracts']:
-        sym = c.get("instrumentSymbol")
-        p   = st.session_state.live_prices.get(sym, c['prices'].get('buy', {}).get('yes'))
+        sym   = c.get("instrumentSymbol")
+        p     = st.session_state.live_prices.get(sym, c['prices'].get('buy', {}).get('yes'))
         if p is None:
             continue
         pct   = round(float(p) * 100)
-        badge = '<span class="badge badge-yes">YES</span>' if pct >= 50 else '<span class="badge badge-no">NO</span>'
-        bar   = f"""<div class="prob-bar-wrap">
-                      <div class="prob-bar"><div class="prob-fill" style="width:{pct}%"></div></div>
-                      <span style="color:#f0a732;font-weight:700;min-width:32px">{pct}%</span>
-                    </div>"""
+        badge = f'<span class="badge badge-yes">YES</span>' if pct >= 50 else f'<span class="badge badge-no">NO</span>'
+        bar_w = pct
+        table_rows += f"""
+        <tr>
+            <td>{m['title']}</td>
+            <td>{c['label']}</td>
+            <td>{badge}</td>
+            <td class="prob-bar-cell">
+                <div class="prob-bar-wrap">
+                    <div class="prob-bar"><div class="prob-fill" style="width:{bar_w}%"></div></div>
+                    <span style="color:#f0a732;font-weight:700;min-width:32px">{pct}%</span>
+                </div>
+            </td>
+        </tr>"""
 
-        c1, c2, c3, c4, c5 = st.columns([3, 3, 1, 2, 1])
-        c1.markdown(f"<div style='font-size:11px;color:#8b949e;padding:5px 0;border-bottom:1px solid #161b22'>{m['title']}</div>", unsafe_allow_html=True)
-        c2.markdown(f"<div style='font-size:11px;color:#c9d1d9;padding:5px 0;border-bottom:1px solid #161b22'>{c['label']}</div>", unsafe_allow_html=True)
-        c3.markdown(f"<div style='padding:5px 0;border-bottom:1px solid #161b22'>{badge}</div>", unsafe_allow_html=True)
-        c4.markdown(f"<div style='padding:5px 0;border-bottom:1px solid #161b22'>{bar}</div>", unsafe_allow_html=True)
-        with c5:
-            if st.button("▶", key=f"analyze_{sym}", help=f"Analyze {c['label']}"):
-                st.session_state.pending_query = f"Analyze this contract: {m['title']} — {c['label']} is currently at {pct}% probability. Why is it priced here and what's your signal?"
+st.markdown(f"""
+<table class="mkt-table">
+    <thead>
+        <tr>
+            <th>SECTOR</th>
+            <th>CONTRACT</th>
+            <th>SIGNAL</th>
+            <th>PROBABILITY</th>
+        </tr>
+    </thead>
+    <tbody>{table_rows}</tbody>
+</table>
+""", unsafe_allow_html=True)
 
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-# ─── 6. CHAT ───────────────────────────────────────────────────────────────────
+# ─── 6. CHAT (INVISIBLE AUTO-ROUTING) ──────────────────────────────────────────────
 for msg in st.session_state.conversation_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
 
-if user_input := st.chat_input("Ask about any market..."):
-    pass
-else:
-    user_input = st.session_state.pop("pending_query", None) if st.session_state.pending_query else None
-
-if user_input:
+if user_input := st.chat_input("ANLYS> enter market query or quant request..."):
     st.session_state.conversation_history.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -485,31 +466,64 @@ if user_input:
         for c in m['contracts']
     )
 
-    prompt = f"""You are MarketMind Terminal. Analyse LIVE Gemini prediction market prices.
-    
-DATA:
-{summary}
+    # ZERO-LATENCY INTENT CLASSIFIER
+    # If the user mentions math/quant concepts, trigger Gemini Sandbox.
+    quant_keywords = ["kelly", "monte carlo", "simulate", "simulation", "correlation", "matrix", "optimal bet", "calculate", "math", "quant"]
+    is_quant_query = any(keyword in user_input.lower() for keyword in quant_keywords)
 
-RULES:
-- Institutional-grade, concise, no filler.
-- Framework: >70% = STRONG YES | 50–70% = MODERATE YES | <30% = STRONG NO
-- Always end with [SIGNAL: XX] where XX is 0–100."""
+    if is_quant_query:
+        # ROUTE 1: GEMINI SANDBOX (QUANT MODE)
+        sandbox_prompt = f"""
+        You are the MarketMind Quant Engine. You have access to a Python sandbox.
+        
+        TASK: {user_input}
+        
+        LIVE MARKET DATA:
+        {summary}
+        
+        INSTRUCTIONS:
+        1. Write and run Python code to analyze this data.
+        2. If asked for Kelly Criterion, use formula: f* = (bp - q) / b (assume b is decimal odds derived from probability).
+        3. If asked for a simulation, run Monte Carlo paths.
+        4. Explain your mathematical findings clearly in markdown.
+        5. DO NOT just output code; you must execute it and summarize the final numbers.
+        """
+        with st.chat_message("assistant"):
+            with st.spinner("INITIATING QUANT ENGINE (GEMINI SANDBOX)..."):
+                try:
+                    res = deep_analyst.generate_content(sandbox_prompt)
+                    st.markdown(res.text)
+                    st.session_state.conversation_history.append({"role": "assistant", "content": res.text})
+                except Exception as e:
+                    st.error(f"Sandbox Error: Ensure GEMINI_API_KEY is set in .env. Details: {e}")
 
-    with st.chat_message("assistant"):
-        with st.spinner("EXECUTING ANALYTICAL PASS..."):
-            res = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": prompt}]
-                         + st.session_state.conversation_history
-            )
-            raw  = res.choices[0].message.content
-            text = re.sub(r'\[SIGNAL:\s*\d+\]', '', raw).strip()
-            st.markdown(text)
+    else:
+        # ROUTE 2: GROQ LLAMA 3.3 (SPEED MODE)
+        prompt = f"""You are MarketMind Terminal. Analyse LIVE Gemini prediction market prices.
+        
+        DATA:
+        {summary}
 
-            entry = {"role": "assistant", "content": text}
-            match = re.search(r'\[SIGNAL:\s*(\d+)\]', raw)
-            if match:
-                val = int(match.group(1))
-                st.plotly_chart(create_gauge_chart(val), use_container_width=True)
-                entry["chart_data"] = val
-            st.session_state.conversation_history.append(entry)
+        RULES:
+        - Institutional-grade, concise, no filler.
+        - Framework: >70% = STRONG YES | 50–70% = MODERATE YES | <30% = STRONG NO
+        - Always end with [SIGNAL: XX] where XX is 0–100."""
+
+        with st.chat_message("assistant"):
+            with st.spinner("EXECUTING ANALYTICAL PASS (GROQ)..."):
+                res = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "system", "content": prompt}]
+                             + [m for m in st.session_state.conversation_history if 'chart_data' not in m]
+                )
+                raw  = res.choices[0].message.content
+                text = re.sub(r'\[SIGNAL:\s*\d+\]', '', raw).strip()
+                st.markdown(text)
+
+                entry = {"role": "assistant", "content": text}
+                match = re.search(r'\[SIGNAL:\s*(\d+)\]', raw)
+                if match:
+                    val = int(match.group(1))
+                    st.plotly_chart(create_gauge_chart(val), use_container_width=True)
+                    entry["chart_data"] = val
+                st.session_state.conversation_history.append(entry)
