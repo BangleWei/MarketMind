@@ -142,6 +142,7 @@ env/
 venv/
 __pycache__/
 ENV/
+.DS_Store
 env.bak/
 venv.bak/
 
