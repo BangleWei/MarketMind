@@ -151,6 +151,20 @@ div[data-testid="stButton"] button:hover {
     background: rgba(240,167,50,0.05) !important;
 }
 
+/* Sidebar Specific Buttons */
+div[data-testid="stSidebar"] button {
+    background-color: transparent !important;
+    border: 1px solid #21262d !important;
+    color: #8b949e !important;
+    text-align: left !important;
+    padding: 2px 8px !important;
+    font-size: 10px !important;
+}
+div[data-testid="stSidebar"] button:hover {
+    border-color: #f0a732 !important;
+    color: #f0a732 !important;
+}
+
 .stChatMessage {
     background-color: #161b22 !important;
     border: 1px solid #21262d !important;
@@ -186,17 +200,6 @@ div[data-testid="stButton"] button:hover {
 }
 .stChatFloatingInputContainer { padding: 8px 0 !important; }
 
-.mkt-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 0;
-    border-bottom: 1px solid #21262d;
-    font-size: 10px;
-}
-.mkt-row-label { color: #8b949e; flex: 1; padding-right: 8px; line-height: 1.4; }
-.mkt-row-prob  { color: #f0a732; font-weight: 700; white-space: nowrap; }
-
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
 </style>
@@ -206,6 +209,7 @@ div[data-testid="stButton"] button:hover {
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# SETUP GEMINI ENGINE AGAIN
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 deep_analyst = genai.GenerativeModel(
     model_name='gemini-2.0-flash',
@@ -267,44 +271,50 @@ def start_websocket(symbol):
         threading.Thread(target=run, daemon=True).start()
         st.session_state[f"ws_thread_{symbol}"] = True
 
-# ─── 4. SIDEBAR ────────────────────────────────────────────────────────────────
+# ─── 4. SIDEBAR (FRAGMENT) ─────────────────────────────────────────────────────
 with st.sidebar:
     st.title("MKTMIND")
-    st.caption("v1.0.6-live  |  Auto-Routing Matrix")
+    st.caption("v1.0.8-live  |  Golden Matrix")
     st.divider()
 
-    market_titles = [m['title'] for m in st.session_state.market_data]
-    selected_market_name = st.selectbox("ACTIVE SECTOR", market_titles)
-    selected_market = next(m for m in st.session_state.market_data if m['title'] == selected_market_name)
+    @st.fragment
+    def render_interactive_sidebar():
+        market_titles = [m['title'] for m in st.session_state.market_data]
+        selected_market_name = st.selectbox("ACTIVE SECTOR", market_titles)
+        selected_market = next(m for m in st.session_state.market_data if m['title'] == selected_market_name)
 
-    first_contract = selected_market['contracts'][0]
-    st.session_state.active_symbol = first_contract.get("instrumentSymbol")
-    st.session_state.active_title  = first_contract.get("label")
+        first_contract = selected_market['contracts'][0]
+        st.session_state.active_symbol = first_contract.get("instrumentSymbol")
+        st.session_state.active_title  = first_contract.get("label")
 
-    if st.session_state.active_symbol:
-        start_websocket(st.session_state.active_symbol)
-        current_val = st.session_state.live_prices.get(
-            st.session_state.active_symbol,
-            first_contract.get("prices", {}).get("buy", {}).get("yes", 0.5)
-        )
+        if st.session_state.active_symbol:
+            start_websocket(st.session_state.active_symbol)
+            current_val = st.session_state.live_prices.get(
+                st.session_state.active_symbol,
+                first_contract.get("prices", {}).get("buy", {}).get("yes", 0.5)
+            )
+            st.divider()
+            st.subheader("⚡ LIVE TICKER")
+            st.metric(label=st.session_state.active_title, value=f"{round(float(current_val)*100,1)}%", delta="LIVE STREAM")
+
         st.divider()
-        st.subheader("⚡ LIVE TICKER")
-        st.metric(label=st.session_state.active_title, value=f"{round(float(current_val)*100,1)}%", delta="LIVE STREAM")
-
-    st.divider()
-    st.subheader("ALL MARKETS")
-    rows_html = ""
-    for contract in selected_market['contracts']:
-        p = contract['prices'].get('buy', {}).get('yes', None)
-        if p is not None:
-            pct   = round(float(p) * 100)
-            badge = f'<span class="badge badge-yes">YES</span>' if pct >= 50 else f'<span class="badge badge-no">NO</span>'
-            rows_html += f"""<div class="mkt-row">
-                <span class="mkt-row-label">{contract['label']}</span>
-                {badge}
-                <span class="mkt-row-prob" style="margin-left:6px">{pct}%</span>
-            </div>"""
-    st.markdown(rows_html, unsafe_allow_html=True)
+        st.subheader("ALL MARKETS (CLICK TO ANALYZE)")
+        for contract in selected_market['contracts']:
+            p = contract['prices'].get('buy', {}).get('yes', None)
+            if p is not None:
+                pct = round(float(p) * 100)
+                label = contract['label']
+                badge_color = "#39d353" if pct >= 50 else "#f85149"
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    if st.button(f"{label}", key=f"btn_{contract['instrumentSymbol']}", use_container_width=True):
+                        st.session_state.pending_query = f"Provide a complete analysis on the {label} market. Is this a strong position?"
+                        st.rerun()
+                with col2:
+                    st.markdown(f"<div style='color:{badge_color}; font-weight:bold; padding-top:8px;'>{pct}%</div>", unsafe_allow_html=True)
+    
+    render_interactive_sidebar()
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
@@ -329,13 +339,10 @@ for col, label, value, cls in [
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-# ─── TABLE WITH ANALYZE BUTTONS ────────────────────────────────────────────────
-# Column header row
 hcols = st.columns([3,3,1,2,1])
 for hcol, lbl in zip(hcols, ["SECTOR","CONTRACT","SIGNAL","PROBABILITY",""]):
     hcol.markdown(f"<div style='font-size:9px;color:#484f58;letter-spacing:1px;padding:4px 0;border-bottom:1px solid #21262d'>{lbl}</div>", unsafe_allow_html=True)
 
-# Data rows
 for m in st.session_state.market_data:
     for c in m['contracts']:
         sym = c.get("instrumentSymbol")
@@ -354,6 +361,7 @@ for m in st.session_state.market_data:
         with c5:
             if st.button("▶", key=f"analyze_{sym}", help=f"Analyze {c['label']}"):
                 st.session_state.pending_query = f"Analyze this contract: {m['title']} — {c['label']} is currently at {pct}% probability. Why is it priced here and what's your signal?"
+                st.rerun()
 
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
@@ -364,33 +372,28 @@ for msg in st.session_state.conversation_history:
         if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
 
-# Resolve user input — chat box wins, then pending_query from buttons
-if user_input := st.chat_input("Ask about any market..."):
+if user_input := st.chat_input("Ask about any market or run quant analysis..."):
     pass
 else:
     user_input = st.session_state.pending_query
     st.session_state.pending_query = None
 
 if user_input:
-    # Build market summary for AI context
     summary = "\n".join(
         f"{m['title']} — {c['label']}: "
         f"{st.session_state.live_prices.get(c.get('instrumentSymbol'), c['prices'].get('buy',{}).get('yes','N/A'))}"
         for m in st.session_state.market_data for c in m['contracts']
     )
 
-    # Only add to history + display if this is a NEW query (not a sidebar-rerun replay)
     is_new_query = (user_input != st.session_state.active_query)
 
     if is_new_query:
         st.session_state.active_query    = user_input
-        st.session_state.cached_response = None  # clear previous cache
+        st.session_state.cached_response = None 
         st.session_state.conversation_history.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
-    # If we already have a cached response for this query (sidebar changed mid-call),
-    # just re-render it without hitting the API again
     if st.session_state.cached_response:
         with st.chat_message("assistant"):
             entry = st.session_state.cached_response
@@ -398,7 +401,7 @@ if user_input:
             if "chart_data" in entry:
                 st.plotly_chart(create_gauge_chart(entry["chart_data"]), use_container_width=True)
     else:
-        # Route: quant keywords → Gemini Sandbox, everything else → Groq
+        # THE INVISIBLE ROUTER IS BACK
         quant_keywords = ["kelly","monte carlo","simulate","simulation","correlation","matrix","optimal bet","calculate","math","quant"]
         is_quant = any(kw in user_input.lower() for kw in quant_keywords)
 
@@ -422,7 +425,7 @@ INSTRUCTIONS:
                         st.session_state.cached_response = entry
                         st.session_state.conversation_history.append(entry)
                     except Exception as e:
-                        st.error(f"Sandbox Error: {e}")
+                        st.error(f"Sandbox Error: Ensure GEMINI_API_KEY is active and VPN is OFF. Details: {e}")
         else:
             with st.chat_message("assistant"):
                 with st.spinner("EXECUTING ANALYTICAL PASS (GROQ)..."):
