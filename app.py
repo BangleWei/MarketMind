@@ -9,88 +9,316 @@ import plotly.graph_objects as go
 import re
 from market_data import get_ethical_markets
 
-# --- 0. PROFESSIONAL THEMING (High-Contrast Terminal) ---
+# ─── 0. PAGE CONFIG ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="MarketMind Terminal", page_icon="🧠", layout="wide")
 
+# ─── DESIGN TOKENS ─────────────────────────────────────────────────────────────
+# BG_BASE    : deepest background — the "floor" of the terminal
+# BG_SURFACE : cards, sidebar, panels — one step above the floor
+# BG_RAISED  : hover states, active rows — one more step up
+# AMBER      : primary accent — all data labels, borders, highlights
+# GREEN      : positive delta / YES probability
+# RED        : negative delta / NO probability
+# MUTED      : secondary text, dividers
+
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
-    /* Global Foundation */
-    .stApp { background-color: #0b0e14; color: #d1d5db; font-family: 'Inter', sans-serif; }
-    
-    /* Sidebar: Integrated Design */
-    [data-testid="stSidebar"] {
-        background-color: #0d1117 !important;
-        border-right: 1px solid #30363d;
-        min-width: 300px !important;
-    }
+/* ── GLOBAL RESET ── */
+*, *::before, *::after { box-sizing: border-box; }
 
-    /* Live Ticker: High Contrast Glass */
-    div[data-testid="stMetric"] {
-        background: #161b22;
-        border: 1px solid #38bdf8;
-        border-radius: 8px;
-        padding: 20px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    }
-    div[data-testid="stMetric"] label { 
-        color: #38bdf8 !important; 
-        font-family: 'JetBrains Mono', monospace;
-        letter-spacing: 1.5px;
-        font-size: 0.75rem !important;
-        text-transform: uppercase;
-    }
-    div[data-testid="stMetricValue"] > div {
-        font-family: 'JetBrains Mono', monospace;
-        font-weight: 700;
-        color: #ffffff !important;
-    }
+.stApp {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+}
 
-    /* Chat Styling */
-    .stChatMessage { background-color: #161b22 !important; border: 1px solid #30363d; border-radius: 12px; }
-    
-    /* Input Field */
-    .stChatInputContainer { padding-bottom: 30px !important; }
+/* ── SIDEBAR ── */
+[data-testid="stSidebar"] {
+    background-color: #0d1117 !important;
+    border-right: 1px solid #21262d !important;
+    min-width: 260px !important;
+    max-width: 260px !important;
+}
+[data-testid="stSidebar"] * { font-family: 'JetBrains Mono', monospace !important; }
 
-    /* Buttons & Selectors */
-    .stSelectbox div[data-baseweb="select"] {
-        background-color: #1c2128 !important;
-        border: 1px solid #38bdf8 !important;
-        border-radius: 4px;
-    }
+/* Sidebar title */
+[data-testid="stSidebar"] h1 {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 2px !important;
+    color: #f0a732 !important;
+    text-transform: uppercase !important;
+    margin-bottom: 0 !important;
+}
+[data-testid="stSidebar"] .stCaption p {
+    color: #484f58 !important;
+    font-size: 10px !important;
+    letter-spacing: 1px;
+}
 
-    /* Remove Clutter */
-    #MainMenu, footer, header { visibility: hidden; }
-    </style>
-    """, unsafe_allow_html=True)
+/* Sidebar divider */
+[data-testid="stSidebar"] hr {
+    border-color: #21262d !important;
+    margin: 8px 0 !important;
+}
 
+/* Sidebar subheader */
+[data-testid="stSidebar"] h3 {
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    color: #484f58 !important;
+    letter-spacing: 2px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 4px !important;
+}
+
+/* ── LIVE TICKER METRIC ── */
+div[data-testid="stMetric"] {
+    background: #161b22;
+    border: 1px solid #f0a732;
+    border-radius: 2px;           /* Sharp corners — terminals aren't soft */
+    padding: 10px 12px !important;
+    margin-bottom: 4px;
+}
+div[data-testid="stMetric"] label {
+    color: #f0a732 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+    letter-spacing: 1.5px !important;
+    text-transform: uppercase !important;
+}
+div[data-testid="stMetricValue"] > div {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    letter-spacing: -0.5px;
+}
+/* Delta (the "LIVE STREAM" text) */
+div[data-testid="stMetricDelta"] > div {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+    color: #39d353 !important;
+}
+
+/* ── SELECTBOX ── */
+.stSelectbox label {
+    font-size: 9px !important;
+    color: #484f58 !important;
+    letter-spacing: 1.5px !important;
+    text-transform: uppercase !important;
+}
+.stSelectbox div[data-baseweb="select"] > div {
+    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
+    border-radius: 2px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important;
+    color: #c9d1d9 !important;
+}
+.stSelectbox div[data-baseweb="select"] > div:hover {
+    border-color: #f0a732 !important;
+}
+
+/* ── MAIN TITLE ── */
+.stApp h1 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    color: #f0a732 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase;
+    margin-bottom: 0 !important;
+}
+.stApp .stCaption p {
+    color: #484f58 !important;
+    font-size: 10px !important;
+    letter-spacing: 1px;
+}
+
+/* ── STAT COLUMNS ── */
+.stat-block {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 2px;
+    padding: 8px 12px;
+}
+.stat-label {
+    font-size: 9px;
+    color: #484f58;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+.stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+.up   { color: #39d353; }
+.down { color: #f85149; }
+.neu  { color: #f0a732; }
+
+/* ── MARKET TABLE ── */
+.mkt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    margin-top: 8px;
+}
+.mkt-table th {
+    background: #161b22;
+    color: #484f58;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid #21262d;
+    font-weight: 400;
+}
+.mkt-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #161b22;
+    color: #c9d1d9;
+}
+.mkt-table tr:hover td { background: #161b22; }
+.prob-bar-cell { min-width: 140px; }
+.prob-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.prob-bar {
+    height: 4px;
+    background: #21262d;
+    flex: 1;
+    border-radius: 0;
+    overflow: hidden;
+}
+.prob-fill { height: 100%; background: #f0a732; }
+.badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 1px;
+    letter-spacing: .5px;
+}
+.badge-yes { background: #0f2d0f; color: #39d353; }
+.badge-no  { background: #2d0f0f; color: #f85149; }
+
+/* ── CHAT MESSAGES ── */
+.stChatMessage {
+    background-color: #161b22 !important;
+    border: 1px solid #21262d !important;
+    border-radius: 2px !important;
+    padding: 12px !important;
+}
+.stChatMessage p {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    line-height: 1.7 !important;
+    color: #c9d1d9 !important;
+}
+
+/* ── CHAT INPUT ── */
+.stChatInputContainer {
+    background: #0d1117 !important;
+    border: 1px solid #21262d !important;
+    border-radius: 2px !important;
+}
+.stChatInputContainer textarea {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    color: #c9d1d9 !important;
+    background: transparent !important;
+}
+.stChatInputContainer textarea::placeholder { color: #30363d !important; }
+.stChatInputContainer:focus-within { border-color: #30363d !important; }
+
+/* Kill the white outer wrapper Streamlit injects around the input */
+[data-testid="stBottom"],
+[data-testid="stBottom"] > div,
+.stChatFloatingInputContainer {
+    background: #0d1117 !important;
+    border-top: 1px solid #21262d !important;
+}
+.stChatFloatingInputContainer { padding: 8px 0 !important; }
+
+/* Sidebar market rows */
+.mkt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #21262d;
+    font-size: 10px;
+}
+.mkt-row-label { color: #8b949e; flex: 1; padding-right: 8px; line-height: 1.4; }
+.mkt-row-prob  { color: #f0a732; font-weight: 700; white-space: nowrap; }
+
+/* ── STRIP CLUTTER ── */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# ─── 1. INIT ───────────────────────────────────────────────────────────────────
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# --- 1. STATE & GAUGE LOGIC ---
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
 if "market_data" not in st.session_state:
-    with st.spinner("Initializing Terminal..."):
+    with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
 if "live_prices" not in st.session_state:
     st.session_state.live_prices = {}
 
+# ─── 2. GAUGE CHART ────────────────────────────────────────────────────────────
 def create_gauge_chart(probability):
-    colors = {70: "#00cc96", 50: "#FFA15A", 30: "#FECB52", 0: "#EF553B"}
-    color = next(v for k, v in sorted(colors.items(), reverse=True) if probability >= k)
-    
+    if   probability >= 70: color = "#39d353"   # strong yes  → green
+    elif probability >= 50: color = "#f0a732"   # moderate    → amber
+    elif probability >= 30: color = "#FFA15A"   # lean no     → orange
+    else:                   color = "#f85149"   # strong no   → red
+
     fig = go.Figure(go.Indicator(
-        mode="gauge+number", value=probability,
-        title={'text': "AI Confidence Score", 'font': {'color': 'white', 'size': 16}},
-        number={'suffix': "%", 'font': {'color': color, 'family': 'JetBrains Mono'}},
-        gauge={'axis': {'range': [0, 100], 'tickcolor': "white"}, 'bar': {'color': color}, 'bgcolor': "rgba(0,0,0,0)"}
+        mode="gauge+number",
+        value=probability,
+        title={
+            'text': "AI CONFIDENCE SIGNAL",
+            'font': {'color': '#484f58', 'size': 11, 'family': 'JetBrains Mono'}
+        },
+        number={
+            'suffix': "%",
+            'font': {'color': color, 'family': 'JetBrains Mono', 'size': 36}
+        },
+        gauge={
+            'axis': {
+                'range': [0, 100],
+                'tickcolor': "#30363d",
+                'tickfont': {'color': '#484f58', 'size': 9, 'family': 'JetBrains Mono'}
+            },
+            'bar': {'color': color, 'thickness': 0.25},
+            'bgcolor': "rgba(0,0,0,0)",
+            'bordercolor': "#21262d",
+            'steps': [
+                {'range': [0, 30],  'color': '#2d0f0f'},
+                {'range': [30, 50], 'color': '#2a1d0f'},
+                {'range': [50, 70], 'color': '#1d1a0f'},
+                {'range': [70, 100],'color': '#0f2d0f'},
+            ]
+        }
     ))
-    fig.update_layout(height=220, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
+    fig.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=40, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={'color': "#c9d1d9", 'family': 'JetBrains Mono'}
+    )
     return fig
 
-# --- 2. WEBSOCKET THREAD ---
+# ─── 3. WEBSOCKET ──────────────────────────────────────────────────────────────
 def start_websocket(symbol):
     def on_message(ws, message):
         data = json.loads(message)
@@ -99,94 +327,171 @@ def start_websocket(symbol):
                 if event.get("type") == "trade":
                     st.session_state.live_prices[symbol] = event.get("price")
     def run():
-        websocket.WebSocketApp(f"wss://api.gemini.com/v1/marketdata/{symbol}", on_message=on_message).run_forever()
+        websocket.WebSocketApp(
+            f"wss://api.gemini.com/v1/marketdata/{symbol}",
+            on_message=on_message
+        ).run_forever()
     if f"ws_thread_{symbol}" not in st.session_state:
         t = threading.Thread(target=run, daemon=True)
         t.start()
         st.session_state[f"ws_thread_{symbol}"] = True
 
-# --- 3. THE SIDEBAR (Interactive Product UI) ---
+# ─── 4. SIDEBAR ────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.title("📊 Terminal")
-    st.caption("v1.0.5-live | MarketMind Systems")
+    st.title("MKTMIND")
+    st.caption("v1.0.5-live  |  MarketMind Systems")
     st.divider()
 
-    # Dynamic Sector Selector
     market_titles = [m['title'] for m in st.session_state.market_data]
-    selected_market_name = st.selectbox("🎯 Select Active Sector", market_titles)
+    selected_market_name = st.selectbox("ACTIVE SECTOR", market_titles)
     selected_market = next(m for m in st.session_state.market_data if m['title'] == selected_market_name)
-    
-    # Update Active Contract
+
     first_contract = selected_market['contracts'][0]
     st.session_state.active_symbol = first_contract.get("instrumentSymbol")
-    st.session_state.active_title = first_contract.get("label")
-    
-    # Ensure background websocket is running
+    st.session_state.active_title  = first_contract.get("label")
+
     if st.session_state.active_symbol:
         start_websocket(st.session_state.active_symbol)
-        
-        # Display High-Contrast Ticker
-        st.subheader("⚡ Live Stream")
-        current_val = st.session_state.live_prices.get(st.session_state.active_symbol, 
-                      first_contract.get("prices", {}).get("buy", {}).get("yes", 0.5))
-        
+        current_val = st.session_state.live_prices.get(
+            st.session_state.active_symbol,
+            first_contract.get("prices", {}).get("buy", {}).get("yes", 0.5)
+        )
+        st.divider()
+        st.subheader("⚡ LIVE TICKER")
         st.metric(
-            label=f"CONTRACT: {st.session_state.active_title}",
-            value=f"{round(float(current_val)*100, 1)}% YES",
-            delta="ACTIVE WEBSOCKET"
+            label=st.session_state.active_title,
+            value=f"{round(float(current_val) * 100, 1)}%",
+            delta="LIVE STREAM"
         )
 
     st.divider()
-    st.subheader("Inventory: " + selected_market_name)
+    st.subheader("ALL MARKETS")
+
+    # Flat market list — no expanders, every row visible at a glance
+    rows_html = ""
     for contract in selected_market['contracts']:
-        p = contract['prices'].get('buy', {}).get('yes', 'N/A')
-        prob = f"{round(float(p)*100)}%" if p != 'N/A' else 'N/A'
-        st.write(f"• {contract['label']}: **{prob}**")
+        p = contract['prices'].get('buy', {}).get('yes', None)
+        if p is not None:
+            pct   = round(float(p) * 100)
+            label = contract['label']
+            badge = f'<span class="badge badge-yes">YES</span>' if pct >= 50 else f'<span class="badge badge-no">NO</span>'
+            rows_html += f"""
+            <div class="mkt-row">
+                <span class="mkt-row-label">{label}</span>
+                {badge}
+                <span class="mkt-row-prob" style="margin-left:6px">{pct}%</span>
+            </div>"""
+    st.markdown(rows_html, unsafe_allow_html=True)
 
-# --- 4. MAIN CHAT INTERFACE ---
-st.title("🧠 MarketMind Terminal")
-st.caption("Institutional Analysis Engine | Powered by Groq LLaMA 3.3 & Gemini Data")
+# ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
+st.title("MARKETMIND TERMINAL")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ LLAMA 3.3 × GEMINI DATA")
 
+# Stats bar — quick-glance metrics across all loaded markets
+all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
+total_markets = len(all_contracts)
+prices        = [c['prices'].get('buy', {}).get('yes') for c in all_contracts]
+valid_prices  = [float(p) for p in prices if p is not None]
+top_prob      = round(max(valid_prices) * 100, 1) if valid_prices else 0
+avg_prob      = round(sum(valid_prices) / len(valid_prices) * 100, 1) if valid_prices else 0
+strong_yes    = sum(1 for p in valid_prices if p >= 0.7)
+
+col1, col2, col3, col4 = st.columns(4)
+for col, label, value, cls in [
+    (col1, "MARKETS",    str(total_markets),     "neu"),
+    (col2, "TOP PROB",   f"{top_prob}%",          "up"),
+    (col3, "AVG PROB",   f"{avg_prob}%",          "neu"),
+    (col4, "STRONG YES", str(strong_yes),          "up"),
+]:
+    with col:
+        st.markdown(f"""
+        <div class="stat-block">
+            <div class="stat-label">{label}</div>
+            <div class="stat-value {cls}">{value}</div>
+        </div>""", unsafe_allow_html=True)
+
+st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+# Market overview table
+table_rows = ""
+for m in st.session_state.market_data:
+    for c in m['contracts']:
+        sym   = c.get("instrumentSymbol")
+        p     = st.session_state.live_prices.get(sym, c['prices'].get('buy', {}).get('yes'))
+        if p is None:
+            continue
+        pct   = round(float(p) * 100)
+        badge = f'<span class="badge badge-yes">YES</span>' if pct >= 50 else f'<span class="badge badge-no">NO</span>'
+        bar_w = pct
+        table_rows += f"""
+        <tr>
+            <td>{m['title']}</td>
+            <td>{c['label']}</td>
+            <td>{badge}</td>
+            <td class="prob-bar-cell">
+                <div class="prob-bar-wrap">
+                    <div class="prob-bar"><div class="prob-fill" style="width:{bar_w}%"></div></div>
+                    <span style="color:#f0a732;font-weight:700;min-width:32px">{pct}%</span>
+                </div>
+            </td>
+        </tr>"""
+
+st.markdown(f"""
+<table class="mkt-table">
+    <thead>
+        <tr>
+            <th>SECTOR</th>
+            <th>CONTRACT</th>
+            <th>SIGNAL</th>
+            <th>PROBABILITY</th>
+        </tr>
+    </thead>
+    <tbody>{table_rows}</tbody>
+</table>
+""", unsafe_allow_html=True)
+
+st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+
+# ─── 6. CHAT ───────────────────────────────────────────────────────────────────
 for msg in st.session_state.conversation_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "chart_data" in msg: 
+        if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
 
-if user_input := st.chat_input("Enter market query..."):
+if user_input := st.chat_input("Ask about any market..."):
     st.session_state.conversation_history.append({"role": "user", "content": user_input})
-    with st.chat_message("user"): 
+    with st.chat_message("user"):
         st.markdown(user_input)
-    
-    # UNIFIED DATA SUMMARY: Prioritizes live prices for the AI
-    summary_list = []
-    for m in st.session_state.market_data:
-        for c in m['contracts']:
-            sym = c.get("instrumentSymbol")
-            price = st.session_state.live_prices.get(sym, c['prices'].get('buy',{}).get('yes','N/A'))
-            summary_list.append(f"{m['title']} - {c['label']}: {price}")
-    
-    summary = "\n".join(summary_list)
 
-    prompt = f"""You are MarketMind Terminal. Analyze LIVE Gemini prices:
-    {summary}
+    summary = "\n".join(
+        f"{m['title']} — {c['label']}: "
+        f"{st.session_state.live_prices.get(c.get('instrumentSymbol'), c['prices'].get('buy',{}).get('yes','N/A'))}"
+        for m in st.session_state.market_data
+        for c in m['contracts']
+    )
+
+    prompt = f"""You are MarketMind Terminal. Analyse LIVE Gemini prediction market prices.
     
-    Professional Persona:
-    - Institutional-grade analysis.
-    - Framework: >70% Strong YES, 50-70% Moderate YES, <30% Strong NO.
-    - End response with [SIGNAL: XX].
-    """
+DATA:
+{summary}
+
+RULES:
+- Institutional-grade, concise, no filler.
+- Framework: >70% = STRONG YES | 50–70% = MODERATE YES | <30% = STRONG NO
+- Always end with [SIGNAL: XX] where XX is 0–100."""
 
     with st.chat_message("assistant"):
-        with st.spinner("Executing analytical pass..."):
+        with st.spinner("EXECUTING ANALYTICAL PASS..."):
             res = client.chat.completions.create(
-                model="llama-3.3-70b-versatile", 
-                messages=[{"role": "system", "content": prompt}] + st.session_state.conversation_history
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": prompt}]
+                         + st.session_state.conversation_history
             )
-            raw = res.choices[0].message.content
+            raw  = res.choices[0].message.content
             text = re.sub(r'\[SIGNAL:\s*\d+\]', '', raw).strip()
             st.markdown(text)
-            
+
             entry = {"role": "assistant", "content": text}
             match = re.search(r'\[SIGNAL:\s*(\d+)\]', raw)
             if match:
