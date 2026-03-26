@@ -244,7 +244,24 @@ div[data-testid="stMetricDelta"] > div {
 }
 .stChatFloatingInputContainer { padding: 8px 0 !important; }
 
-/* Sidebar market rows */
+/* Analyze button in table rows */
+div[data-testid="stButton"] button {
+    background: transparent !important;
+    border: 1px solid #30363d !important;
+    border-radius: 2px !important;
+    color: #484f58 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    padding: 2px 8px !important;
+    height: 24px !important;
+    line-height: 1 !important;
+    transition: all 0.1s !important;
+}
+div[data-testid="stButton"] button:hover {
+    border-color: #f0a732 !important;
+    color: #f0a732 !important;
+    background: rgba(240,167,50,0.05) !important;
+}
 .mkt-row {
     display: flex;
     justify-content: space-between;
@@ -268,6 +285,8 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
+if "pending_query" not in st.session_state:
+    st.session_state.pending_query = None
 if "market_data" not in st.session_state:
     with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
@@ -412,43 +431,33 @@ for col, label, value, cls in [
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-# Market overview table
-table_rows = ""
+# Table header
+cols = st.columns([3, 3, 1, 2, 1])
+for col, label in zip(cols, ["SECTOR", "CONTRACT", "SIGNAL", "PROBABILITY", ""]):
+    col.markdown(f"<div style='font-size:9px;color:#484f58;letter-spacing:1px;padding:4px 0;border-bottom:1px solid #21262d'>{label}</div>", unsafe_allow_html=True)
+
+# Table rows with analyze button
 for m in st.session_state.market_data:
     for c in m['contracts']:
-        sym   = c.get("instrumentSymbol")
-        p     = st.session_state.live_prices.get(sym, c['prices'].get('buy', {}).get('yes'))
+        sym = c.get("instrumentSymbol")
+        p   = st.session_state.live_prices.get(sym, c['prices'].get('buy', {}).get('yes'))
         if p is None:
             continue
         pct   = round(float(p) * 100)
-        badge = f'<span class="badge badge-yes">YES</span>' if pct >= 50 else f'<span class="badge badge-no">NO</span>'
-        bar_w = pct
-        table_rows += f"""
-        <tr>
-            <td>{m['title']}</td>
-            <td>{c['label']}</td>
-            <td>{badge}</td>
-            <td class="prob-bar-cell">
-                <div class="prob-bar-wrap">
-                    <div class="prob-bar"><div class="prob-fill" style="width:{bar_w}%"></div></div>
-                    <span style="color:#f0a732;font-weight:700;min-width:32px">{pct}%</span>
-                </div>
-            </td>
-        </tr>"""
+        badge = '<span class="badge badge-yes">YES</span>' if pct >= 50 else '<span class="badge badge-no">NO</span>'
+        bar   = f"""<div class="prob-bar-wrap">
+                      <div class="prob-bar"><div class="prob-fill" style="width:{pct}%"></div></div>
+                      <span style="color:#f0a732;font-weight:700;min-width:32px">{pct}%</span>
+                    </div>"""
 
-st.markdown(f"""
-<table class="mkt-table">
-    <thead>
-        <tr>
-            <th>SECTOR</th>
-            <th>CONTRACT</th>
-            <th>SIGNAL</th>
-            <th>PROBABILITY</th>
-        </tr>
-    </thead>
-    <tbody>{table_rows}</tbody>
-</table>
-""", unsafe_allow_html=True)
+        c1, c2, c3, c4, c5 = st.columns([3, 3, 1, 2, 1])
+        c1.markdown(f"<div style='font-size:11px;color:#8b949e;padding:5px 0;border-bottom:1px solid #161b22'>{m['title']}</div>", unsafe_allow_html=True)
+        c2.markdown(f"<div style='font-size:11px;color:#c9d1d9;padding:5px 0;border-bottom:1px solid #161b22'>{c['label']}</div>", unsafe_allow_html=True)
+        c3.markdown(f"<div style='padding:5px 0;border-bottom:1px solid #161b22'>{badge}</div>", unsafe_allow_html=True)
+        c4.markdown(f"<div style='padding:5px 0;border-bottom:1px solid #161b22'>{bar}</div>", unsafe_allow_html=True)
+        with c5:
+            if st.button("▶", key=f"analyze_{sym}", help=f"Analyze {c['label']}"):
+                st.session_state.pending_query = f"Analyze this contract: {m['title']} — {c['label']} is currently at {pct}% probability. Why is it priced here and what's your signal?"
 
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
@@ -460,6 +469,11 @@ for msg in st.session_state.conversation_history:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
 
 if user_input := st.chat_input("Ask about any market..."):
+    pass
+else:
+    user_input = st.session_state.pop("pending_query", None) if st.session_state.pending_query else None
+
+if user_input:
     st.session_state.conversation_history.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
