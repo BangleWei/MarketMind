@@ -204,7 +204,8 @@ div[data-testid="stSidebar"] button:hover {
 }
 .stChatFloatingInputContainer { padding: 8px 0 !important; }
 
-#MainMenu, footer, header { visibility: hidden; }
+#MainMenu, footer { visibility: hidden; }
+header { background: transparent !important; }
 .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
 </style>
 """, unsafe_allow_html=True)
