@@ -7,7 +7,7 @@ import websocket
 import json
 import plotly.graph_objects as go
 import re
-import google.generativeai as genai
+import numpy as np
 from market_data import get_ethical_markets
 
 # ─── 0. PAGE CONFIG ────────────────────────────────────────────────────────────
@@ -209,13 +209,6 @@ div[data-testid="stSidebar"] button:hover {
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# SETUP GEMINI ENGINE AGAIN
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-deep_analyst = genai.GenerativeModel(
-    model_name='gemini-2.0-flash',
-    tools='code_execution'
-)
-
 if "conversation_history"  not in st.session_state: st.session_state.conversation_history  = []
 if "pending_query"         not in st.session_state: st.session_state.pending_query         = None
 if "active_query"          not in st.session_state: st.session_state.active_query          = None
@@ -318,7 +311,7 @@ with st.sidebar:
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
-st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × GEMINI SANDBOX")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × LOCAL QUANT MATH")
 
 all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
 total_markets = len(all_contracts)
@@ -401,31 +394,59 @@ if user_input:
             if "chart_data" in entry:
                 st.plotly_chart(create_gauge_chart(entry["chart_data"]), use_container_width=True)
     else:
-        # THE INVISIBLE ROUTER IS BACK
+        # INVISIBLE ROUTER -> LOCAL NUMPY MATH + GROQ
         quant_keywords = ["kelly","monte carlo","simulate","simulation","correlation","matrix","optimal bet","calculate","math","quant"]
         is_quant = any(kw in user_input.lower() for kw in quant_keywords)
 
         if is_quant:
             with st.chat_message("assistant"):
-                with st.spinner("INITIATING QUANT ENGINE (GEMINI SANDBOX)..."):
+                with st.spinner("INITIATING QUANT ENGINE (LOCAL MATH × GROQ)..."):
                     try:
-                        sandbox_prompt = f"""You are the MarketMind Quant Engine. You have access to a Python sandbox.
+                        # --- LOCAL MATH ENGINE (0 Latency, 100% Free) ---
+                        top_p = max(valid_prices) if valid_prices else 0.50
+                        
+                        # 1. Kelly Criterion Math
+                        b = (1 / top_p) - 1 if top_p > 0 else 1
+                        kelly_pct = round(max(0, ((top_p * b - (1-top_p)) / b) * 100), 2) if b > 0 else 0
+                        
+                        # 2. Monte Carlo Simulation (10,000 runs)
+                        simulations = 10000
+                        outcomes = np.random.binomial(1, top_p, simulations) 
+                        sim_mean = np.mean(outcomes)
+                        sim_std = np.std(outcomes)
+
+                        math_context = f"""
+                        SYSTEM PRE-CALCULATED MATH (RUN LOCALLY IN PYTHON):
+                        - Target Probability: {top_p * 100}%
+                        - Optimal Kelly Allocation: {kelly_pct}%
+                        - Monte Carlo ({simulations} runs) Mean Value: {sim_mean:.4f}
+                        - Monte Carlo Standard Deviation: {sim_std:.4f}
+                        """
+
+                        sandbox_prompt = f"""You are the MarketMind Quant Engine.
 TASK: {user_input}
-LIVE MARKET DATA:
-{summary}
+LIVE MARKET DATA: {summary}
+{math_context}
+
 INSTRUCTIONS:
-1. Write and execute Python code to solve this.
-2. Kelly Criterion formula: f* = (bp - q) / b where b = implied odds from probability.
-3. For simulations, run the full requested number of paths.
-4. Present final numbers clearly in markdown. Do not just show code — show results."""
-                        res  = deep_analyst.generate_content(sandbox_prompt)
-                        text = res.text
+1. You act as a quantitative analyst. 
+2. The system has already run the Python math for you. Use the PRE-CALCULATED MATH provided above to answer the user's specific question.
+3. If asked about the Monte Carlo simulation, explain what Standard Deviation means in this context (risk/volatility) and cite the exact pre-calculated number.
+4. If asked about Kelly Criterion, explain the logic and provide the exact pre-calculated percentage.
+5. Format cleanly using markdown. Do NOT use the [SIGNAL: XX] tag here.
+"""
+                        res = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role":"system","content":sandbox_prompt}]
+                        )
+                        text = res.choices[0].message.content
                         st.markdown(text)
+                        
                         entry = {"role": "assistant", "content": text}
                         st.session_state.cached_response = entry
                         st.session_state.conversation_history.append(entry)
                     except Exception as e:
-                        st.error(f"Sandbox Error: Ensure GEMINI_API_KEY is active and VPN is OFF. Details: {e}")
+                        st.error(f"Quant Engine Error: {e}")
         else:
             with st.chat_message("assistant"):
                 with st.spinner("EXECUTING ANALYTICAL PASS (GROQ)..."):
