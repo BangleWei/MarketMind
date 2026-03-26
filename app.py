@@ -274,7 +274,54 @@ def create_gauge_chart(probability):
         font={'color': "#c9d1d9", 'family': 'JetBrains Mono'}
     )
     return fig
+def create_mc_chart(top_p, kelly_pct):
+    # Simulate bankroll growth: 100 alternate realities, 50 trades each
+    paths = 100
+    steps = 50
+    bankroll = np.zeros((paths, steps + 1))
+    bankroll[:, 0] = 1000 # Starting bankroll: $1,000
 
+    # Convert Kelly percentage to a decimal fraction
+    f = kelly_pct / 100.0 if kelly_pct > 0 else 0.05 # Minimum 5% bet if Kelly is 0 just to visualize variance
+    b = (1 / top_p) - 1 if top_p > 0 else 1 # Implied odds
+
+    # Generate the simulated price paths
+    for i in range(paths):
+        outcomes = np.random.binomial(1, top_p, steps)
+        for t in range(steps):
+            bet_size = bankroll[i, t] * f
+            if outcomes[t] == 1:
+                bankroll[i, t+1] = bankroll[i, t] + bet_size * b
+            else:
+                bankroll[i, t+1] = bankroll[i, t] - bet_size
+
+    fig = go.Figure()
+    
+    # Plot all 100 alternate reality paths
+    for i in range(paths):
+        fig.add_trace(go.Scatter(
+            x=list(range(steps + 1)), y=bankroll[i], mode='lines',
+            line=dict(color='rgba(240, 167, 50, 0.03)', width=1),
+            showlegend=False, hoverinfo='skip'
+        ))
+    
+    # Plot the Mean Expected path
+    mean_path = np.mean(bankroll, axis=0)
+    fig.add_trace(go.Scatter(
+        x=list(range(steps + 1)), y=mean_path, mode='lines',
+        line=dict(color='#39d353', width=3), name='Mean Bankroll Projection'
+    ))
+
+    fig.update_layout(
+        title={'text': "MONTE CARLO: 50-STEP KELLY BANKROLL PROJECTION", 'font': {'color': '#484f58', 'size': 11, 'family': 'JetBrains Mono'}},
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font={'color': "#c9d1d9", 'family': 'JetBrains Mono'},
+        xaxis=dict(showgrid=True, gridcolor='#21262d', title="Trades Executed"),
+        yaxis=dict(showgrid=True, gridcolor='#21262d', title="Projected Capital ($)"),
+        height=320, margin=dict(l=20, r=20, t=40, b=20),
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)")
+    )
+    return fig
 # ─── 3. WEBSOCKET ──────────────────────────────────────────────────────────────
 def start_websocket(symbol):
     def on_message(ws, message):
@@ -389,6 +436,8 @@ for msg in st.session_state.conversation_history:
         st.markdown(msg["content"])
         if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
+        if "mc_chart" in msg:
+            st.plotly_chart(msg["mc_chart"], use_container_width=True)
 
 if user_input := st.chat_input("Ask about any market or run quant analysis..."):
     pass
@@ -467,7 +516,12 @@ INSTRUCTIONS:
                         text = res.choices[0].message.content
                         st.markdown(text)
                         
-                        entry = {"role": "assistant", "content": text}
+                        # Generate the dynamic visual!
+                        fig_mc = create_mc_chart(top_p, kelly_pct)
+                        st.plotly_chart(fig_mc, use_container_width=True)
+                        
+                        # Save the visual state so it doesn't disappear on refresh
+                        entry = {"role": "assistant", "content": text, "mc_chart": fig_mc}
                         st.session_state.cached_response = entry
                         st.session_state.conversation_history.append(entry)
                     except Exception as e:
