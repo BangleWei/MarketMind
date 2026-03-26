@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="MarketMind Terminal", 
     page_icon="🧠", 
     layout="wide", 
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded" 
 )
 
 st.markdown("""
@@ -37,8 +37,9 @@ st.markdown("""
     min-width: 260px !important;
     max-width: 260px !important;
 }
+
 /* Apply font to sidebar, but exempt Streamlit's icon fonts */
-[data-testid="stSidebar"] *:not(.material-symbols-rounded) { 
+[data-testid="stSidebar"] *:not(.material-symbols-rounded):not(svg) { 
     font-family: 'JetBrains Mono', monospace !important; 
 }
 
@@ -146,7 +147,7 @@ div[data-testid="stMetricDelta"] > div {
 .badge-yes { background: #0f2d0f; color: #39d353; }
 .badge-no  { background: #2d0f0f; color: #f85149; }
 
-/* Analyze button main area */
+/* Analyze button */
 div[data-testid="stButton"] button {
     background: transparent !important;
     border: 1px solid #30363d !important;
@@ -228,15 +229,14 @@ if "conversation_history"  not in st.session_state: st.session_state.conversatio
 if "pending_query"         not in st.session_state: st.session_state.pending_query         = None
 if "active_query"          not in st.session_state: st.session_state.active_query          = None
 if "cached_response"       not in st.session_state: st.session_state.cached_response       = None
-if "baseline_prices"       not in st.session_state: st.session_state.baseline_prices       = {}
-if "alerts_triggered"      not in st.session_state: st.session_state.alerts_triggered      = set()
-
 if "market_data"           not in st.session_state:
     with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
 if "live_prices"           not in st.session_state: st.session_state.live_prices           = {}
+if "baseline_prices"       not in st.session_state: st.session_state.baseline_prices       = {}
+if "alerts_triggered"      not in st.session_state: st.session_state.alerts_triggered      = set()
 
-# ─── 2. GAUGE CHART ────────────────────────────────────────────────────────────
+# ─── 2. CHARTS ─────────────────────────────────────────────────────────────────
 def create_gauge_chart(probability):
     if   probability >= 70: color = "#39d353"
     elif probability >= 50: color = "#f0a732"
@@ -265,6 +265,50 @@ def create_gauge_chart(probability):
         height=200, margin=dict(l=20, r=20, t=40, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font={'color': "#c9d1d9", 'family': 'JetBrains Mono'}
+    )
+    return fig
+
+def create_mc_chart(top_p, kelly_pct):
+    paths = 100
+    steps = 50
+    bankroll = np.zeros((paths, steps + 1))
+    bankroll[:, 0] = 1000 
+
+    f = kelly_pct / 100.0 if kelly_pct > 0 else 0.05 
+    b = (1 / top_p) - 1 if top_p > 0 else 1 
+
+    for i in range(paths):
+        outcomes = np.random.binomial(1, top_p, steps)
+        for t in range(steps):
+            bet_size = bankroll[i, t] * f
+            if outcomes[t] == 1:
+                bankroll[i, t+1] = bankroll[i, t] + bet_size * b
+            else:
+                bankroll[i, t+1] = bankroll[i, t] - bet_size
+
+    fig = go.Figure()
+    
+    for i in range(paths):
+        fig.add_trace(go.Scatter(
+            x=list(range(steps + 1)), y=bankroll[i], mode='lines',
+            line=dict(color='rgba(240, 167, 50, 0.03)', width=1),
+            showlegend=False, hoverinfo='skip'
+        ))
+    
+    mean_path = np.mean(bankroll, axis=0)
+    fig.add_trace(go.Scatter(
+        x=list(range(steps + 1)), y=mean_path, mode='lines',
+        line=dict(color='#39d353', width=3), name='Mean Bankroll Projection'
+    ))
+
+    fig.update_layout(
+        title={'text': "MONTE CARLO: 50-STEP KELLY BANKROLL PROJECTION", 'font': {'color': '#484f58', 'size': 11, 'family': 'JetBrains Mono'}},
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font={'color': "#c9d1d9", 'family': 'JetBrains Mono'},
+        xaxis=dict(showgrid=True, gridcolor='#21262d', title="Trades Executed"),
+        yaxis=dict(showgrid=True, gridcolor='#21262d', title="Projected Capital ($)"),
+        height=320, margin=dict(l=20, r=20, t=40, b=20),
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0)")
     )
     return fig
 
@@ -329,7 +373,7 @@ with st.sidebar:
 
 # ─── 5. MAIN AREA ──────────────────────────────────────────────────────────────
 st.title("MARKETMIND TERMINAL")
-st.caption("INSTITUTIONAL ANALYSIS ENGINE  |  GROQ SPEED × LOCAL QUANT MATH")
+st.caption("INSTITUTIONAL ANALYSIS ENGINE")
 
 all_contracts = [c for m in st.session_state.market_data for c in m['contracts']]
 total_markets = len(all_contracts)
@@ -341,8 +385,8 @@ strong_yes    = sum(1 for p in valid_prices if p >= 0.7)
 col1,col2,col3,col4 = st.columns(4)
 for col, label, value, cls in [
     (col1,"MARKETS",str(total_markets),"neu"),
-    (col2,"TOP PROB",f"{top_prob}%","up"),
-    (col3,"AVG PROB",f"{avg_prob}%","neu"),
+    (col2,"TOP PROBABILITY",f"{top_prob}%","up"),
+    (col3,"AVG PROBABILITY",f"{avg_prob}%","neu"),
     (col4,"STRONG YES",str(strong_yes),"up"),
 ]:
     with col:
@@ -378,7 +422,6 @@ st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ─── 6. CHAT ───────────────────────────────────────────────────────────────────
 # --- AGENTIC VOLATILITY WATCHER ---
-# Silently monitors the WebSocket stream for >5% probability swings
 for m in st.session_state.market_data:
     for c in m['contracts']:
         sym = c.get("instrumentSymbol")
@@ -389,7 +432,6 @@ for m in st.session_state.market_data:
                 st.session_state.baseline_prices[sym] = float(current_p)
             else:
                 diff = float(current_p) - baseline
-                # If price swings 5% and we haven't alerted yet
                 if abs(diff) >= 0.05 and sym not in st.session_state.alerts_triggered:
                     direction = "SPIKED" if diff > 0 else "DROPPED"
                     alert_msg = f"🚨 **SYSTEM ALERT:** The `{c['label']}` market probability just {direction} by {abs(diff)*100:.1f}%. Would you like me to run a rapid risk assessment?"
@@ -401,8 +443,9 @@ for msg in st.session_state.conversation_history:
         st.markdown(msg["content"])
         if "chart_data" in msg:
             st.plotly_chart(create_gauge_chart(msg["chart_data"]), use_container_width=True)
+        if "mc_chart" in msg:
+            st.plotly_chart(msg["mc_chart"], use_container_width=True)
 
-# Resolve user input — chat box wins, then pending_query from buttons
 if user_input := st.chat_input("Ask about any market or run quant analysis..."):
     pass
 else:
@@ -414,7 +457,6 @@ if user_input:
     input_lower = user_input.lower()
     filtered_markets = []
     
-    # 1. Scan user prompt for matching sector/contract keywords
     for m in st.session_state.market_data:
         market_keywords = m['title'].lower().split()
         for c in m['contracts']:
@@ -425,20 +467,17 @@ if user_input:
         if any(kw in input_lower for kw in market_keywords if len(kw) > 2):
             filtered_markets.append(m)
 
-    # 2. Fallback: If no specific keywords match, send all data for macro analysis
     if not filtered_markets:
         filtered_markets = st.session_state.market_data
         context_note = "MACRO VIEW (All Markets)"
     else:
         context_note = f"MICRO VIEW ({len(filtered_markets)} Filtered Sectors)"
 
-    # 3. Build the optimized payload
     summary = f"[{context_note}]\n" + "\n".join(
         f"{m['title']} — {c['label']}: "
         f"{st.session_state.live_prices.get(c.get('instrumentSymbol'), c['prices'].get('buy',{}).get('yes','N/A'))}"
         for m in filtered_markets for c in m['contracts']
     )
-    # --- END SIFTING ---
 
     is_new_query = (user_input != st.session_state.active_query)
 
@@ -455,6 +494,8 @@ if user_input:
             st.markdown(entry["content"])
             if "chart_data" in entry:
                 st.plotly_chart(create_gauge_chart(entry["chart_data"]), use_container_width=True)
+            if "mc_chart" in entry:
+                st.plotly_chart(entry["mc_chart"], use_container_width=True)
     else:
         # INVISIBLE ROUTER -> LOCAL NUMPY MATH + GROQ
         quant_keywords = ["kelly","monte carlo","simulate","simulation","correlation","matrix","optimal bet","calculate","math","quant"]
@@ -467,11 +508,9 @@ if user_input:
                         # --- LOCAL MATH ENGINE (0 Latency, 100% Free) ---
                         top_p = max(valid_prices) if valid_prices else 0.50
                         
-                        # 1. Kelly Criterion Math
                         b = (1 / top_p) - 1 if top_p > 0 else 1
                         kelly_pct = round(max(0, ((top_p * b - (1-top_p)) / b) * 100), 2) if b > 0 else 0
                         
-                        # 2. Monte Carlo Simulation (10,000 runs)
                         simulations = 10000
                         outcomes = np.random.binomial(1, top_p, simulations) 
                         sim_mean = np.mean(outcomes)
@@ -491,11 +530,10 @@ LIVE MARKET DATA: {summary}
 {math_context}
 
 INSTRUCTIONS:
-1. You act as a quantitative analyst. 
-2. The system has already run the Python math for you. Use the PRE-CALCULATED MATH provided above to answer the user's specific question.
-3. If asked about the Monte Carlo simulation, explain what Standard Deviation means in this context (risk/volatility) and cite the exact pre-calculated number.
-4. If asked about Kelly Criterion, explain the logic and provide the exact pre-calculated percentage.
-5. Format cleanly using markdown. Do NOT use the [SIGNAL: XX] tag here.
+1. You act as an institutional quantitative terminal. 
+2. Use the PRE-CALCULATED MATH to answer the user's specific question.
+3. Be brutally concise. Give the exact numbers requested. DO NOT explain what a Monte Carlo simulation is, and DO NOT explain how the Kelly Criterion works. Assume the user is an expert.
+4. Format cleanly using markdown. Do NOT use the [SIGNAL: XX] tag here.
 """
                         res = client.chat.completions.create(
                             model="llama-3.3-70b-versatile",
@@ -504,7 +542,10 @@ INSTRUCTIONS:
                         text = res.choices[0].message.content
                         st.markdown(text)
                         
-                        entry = {"role": "assistant", "content": text}
+                        fig_mc = create_mc_chart(top_p, kelly_pct)
+                        st.plotly_chart(fig_mc, use_container_width=True)
+                        
+                        entry = {"role": "assistant", "content": text, "mc_chart": fig_mc}
                         st.session_state.cached_response = entry
                         st.session_state.conversation_history.append(entry)
                     except Exception as e:
@@ -519,10 +560,13 @@ RULES:
 - Institutional-grade, concise, no filler.
 - Framework: >70% = STRONG YES | 50–70% = MODERATE YES | <30% = STRONG NO
 - Always end with [SIGNAL: XX] where XX is 0–100."""
+                    
+                    # Clean the history: Extract ONLY role and content, leave the Plotly charts behind
+                    clean_history = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.conversation_history]
+                    
                     res  = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
-                        messages=[{"role":"system","content":prompt}]
-                                 + [m for m in st.session_state.conversation_history if "chart_data" not in m]
+                        messages=[{"role":"system","content":prompt}] + clean_history
                     )
                     raw  = res.choices[0].message.content
                     text = re.sub(r'\[SIGNAL:\s*\d+\]', '', raw).strip()
