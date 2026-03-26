@@ -37,8 +37,15 @@ st.markdown("""
     max-width: 260px !important;
 }
 /* Apply font to sidebar, but exempt Streamlit's icon fonts */
-[data-testid="stSidebar"] { font-family: 'JetBrains Mono', monospace !important; }
-[data-testid="stSidebar"] *:not(.material-symbols-rounded):not(svg) { 
+/* Apply font to sidebar, but exempt Streamlit's icon fonts */
+[data-testid="stSidebar"] *:not(.material-symbols-rounded) { 
+    font-family: 'JetBrains Mono', monospace !important; 
+}
+
+/* Completely hide the ghost text / collapse button for a cleaner terminal */
+[data-testid="stSidebarCollapseButton"] { 
+    display: none !important; 
+}[data-testid="stSidebar"] *:not(.material-symbols-rounded):not(svg) { 
     font-family: 'JetBrains Mono', monospace !important; 
 }
 
