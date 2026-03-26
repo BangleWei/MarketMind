@@ -36,7 +36,20 @@ st.markdown("""
     min-width: 260px !important;
     max-width: 260px !important;
 }
-[data-testid="stSidebar"] * { font-family: 'JetBrains Mono', monospace !important; }
+/* Apply font to sidebar, but exempt Streamlit's icon fonts */
+[data-testid="stSidebar"] { font-family: 'JetBrains Mono', monospace !important; }
+[data-testid="stSidebar"] *:not(.material-symbols-rounded):not(svg) { 
+    font-family: 'JetBrains Mono', monospace !important; 
+}
+
+/* Style the sidebar toggle arrow */
+[data-testid="stSidebarCollapseButton"] {
+    color: #8b949e !important;
+    background-color: transparent !important;
+}
+[data-testid="stSidebarCollapseButton"]:hover {
+    color: #f0a732 !important;
+}
 [data-testid="stSidebar"] h1 {
     font-size: 11px !important;
     font-weight: 700 !important;
