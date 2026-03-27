@@ -43,30 +43,15 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace !important; 
 }
 
-/* 1. Hide the overlapping top-right "Share/Deploy" toolbar */
+/* Hide the overlapping top-right "Share/Deploy" toolbar */
 [data-testid="stToolbar"] {
     display: none !important;
 }
 
-/* 2. Restore and style the Sidebar Toggle Arrows (< and >) */
+/* Nuke the sidebar toggle completely to remove ghost text */
 [data-testid="stSidebarCollapseButton"], 
 [data-testid="collapsedControl"] {
-    display: flex !important;
-    color: #8b949e !important;
-    background-color: transparent !important;
-    transition: all 0.2s ease !important;
-}
-
-/* Color the actual SVG icons inside the toggle buttons */
-[data-testid="stSidebarCollapseButton"] svg, 
-[data-testid="collapsedControl"] svg {
-    fill: #8b949e !important;
-}
-
-/* Add the Terminal Amber hover effect */
-[data-testid="stSidebarCollapseButton"]:hover svg, 
-[data-testid="collapsedControl"]:hover svg {
-    fill: #f0a732 !important;
+    display: none !important;
 }
 
 [data-testid="stSidebar"] h1 {
@@ -254,8 +239,6 @@ if "market_data"           not in st.session_state:
     with st.spinner("INITIALIZING TERMINAL..."):
         st.session_state.market_data = get_ethical_markets()
 if "live_prices"           not in st.session_state: st.session_state.live_prices           = {}
-if "baseline_prices"       not in st.session_state: st.session_state.baseline_prices       = {}
-if "alerts_triggered"      not in st.session_state: st.session_state.alerts_triggered      = set()
 
 # ─── 2. CHARTS ─────────────────────────────────────────────────────────────────
 def create_gauge_chart(probability):
@@ -442,23 +425,6 @@ for m in st.session_state.market_data:
 st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ─── 6. CHAT ───────────────────────────────────────────────────────────────────
-# --- AGENTIC VOLATILITY WATCHER ---
-for m in st.session_state.market_data:
-    for c in m['contracts']:
-        sym = c.get("instrumentSymbol")
-        current_p = st.session_state.live_prices.get(sym)
-        if current_p is not None:
-            baseline = st.session_state.baseline_prices.get(sym)
-            if baseline is None:
-                st.session_state.baseline_prices[sym] = float(current_p)
-            else:
-                diff = float(current_p) - baseline
-                if abs(diff) >= 0.0001 and sym not in st.session_state.alerts_triggered:
-                    direction = "SPIKED" if diff > 0 else "DROPPED"
-                    alert_msg = f"🚨 **SYSTEM ALERT:** The `{c['label']}` market probability just {direction} by {abs(diff)*100:.1f}%. Would you like me to run a rapid risk assessment?"
-                    st.session_state.conversation_history.append({"role": "assistant", "content": alert_msg})
-                    st.session_state.alerts_triggered.add(sym)
-
 for msg in st.session_state.conversation_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -526,7 +492,7 @@ if user_input:
             with st.chat_message("assistant"):
                 with st.spinner("INITIATING QUANT ENGINE (LOCAL MATH × GROQ)..."):
                     try:
-                        # --- LOCAL MATH ENGINE (0 Latency, 100% Free) ---
+                        # --- LOCAL MATH ENGINE ---
                         top_p = max(valid_prices) if valid_prices else 0.50
                         
                         b = (1 / top_p) - 1 if top_p > 0 else 1
@@ -582,7 +548,7 @@ RULES:
 - Framework: >70% = STRONG YES | 50–70% = MODERATE YES | <30% = STRONG NO
 - Always end with [SIGNAL: XX] where XX is 0–100."""
                     
-                    # Clean the history: Extract ONLY role and content, leave the Plotly charts behind
+                    # Cleans the history: Extracts only role and content, leave the Plotly charts behind
                     clean_history = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.conversation_history]
                     
                     res  = client.chat.completions.create(
