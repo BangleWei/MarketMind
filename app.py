@@ -43,9 +43,30 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace !important; 
 }
 
-/* Completely hide the ghost text / collapse button for a cleaner terminal */
-[data-testid="stSidebarCollapseButton"] { 
-    display: none !important; 
+/* 1. Hide the overlapping top-right "Share/Deploy" toolbar */
+[data-testid="stToolbar"] {
+    display: none !important;
+}
+
+/* 2. Restore and style the Sidebar Toggle Arrows (< and >) */
+[data-testid="stSidebarCollapseButton"], 
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    color: #8b949e !important;
+    background-color: transparent !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Color the actual SVG icons inside the toggle buttons */
+[data-testid="stSidebarCollapseButton"] svg, 
+[data-testid="collapsedControl"] svg {
+    fill: #8b949e !important;
+}
+
+/* Add the Terminal Amber hover effect */
+[data-testid="stSidebarCollapseButton"]:hover svg, 
+[data-testid="collapsedControl"]:hover svg {
+    fill: #f0a732 !important;
 }
 
 [data-testid="stSidebar"] h1 {
@@ -432,7 +453,7 @@ for m in st.session_state.market_data:
                 st.session_state.baseline_prices[sym] = float(current_p)
             else:
                 diff = float(current_p) - baseline
-                if abs(diff) >= 0.001 and sym not in st.session_state.alerts_triggered:
+                if abs(diff) >= 0.0001 and sym not in st.session_state.alerts_triggered:
                     direction = "SPIKED" if diff > 0 else "DROPPED"
                     alert_msg = f"🚨 **SYSTEM ALERT:** The `{c['label']}` market probability just {direction} by {abs(diff)*100:.1f}%. Would you like me to run a rapid risk assessment?"
                     st.session_state.conversation_history.append({"role": "assistant", "content": alert_msg})
