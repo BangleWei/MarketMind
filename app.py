@@ -511,16 +511,19 @@ if user_input:
                         - Monte Carlo Standard Deviation: {sim_std:.4f}
                         """
 
-                        sandbox_prompt = f"""You are the MarketMind Quant Engine.
-TASK: {user_input}
-LIVE MARKET DATA: {summary}
-{math_context}
+                        prompt = f"""You are the MarketMind Institutional Quant Engine. 
+Analyze the following LIVE Gemini prediction market order book data.
 
-INSTRUCTIONS:
-1. You act as an institutional quantitative terminal. 
-2. Use the PRE-CALCULATED MATH to answer the user's specific question.
-3. Be brutally concise. Give the exact numbers requested. DO NOT explain what a Monte Carlo simulation is, and DO NOT explain how the Kelly Criterion works. Assume the user is an expert.
-4. Format cleanly using markdown. Do NOT use the [SIGNAL: XX] tag here.
+DATA PAYLOAD:
+{summary}
+
+ANALYTICAL FRAMEWORK:
+1. Cross-Asset Correlation: Do not just read the single probability. Compare the requested contract against its sector peers provided in the DATA PAYLOAD. Identify consensus clusters, outliers, or pricing skew.
+2. Market Psychology: Translate the implied probability into structural market dynamics (e.g., >80% = Extreme Consensus/Fully Priced In, 40-60% = Maximum Uncertainty/High Volatility, <20% = Tail Risk).
+3. Institutional Tone: Be brutally concise, data-dense, and objective. Use quantitative finance terminology (implied odds, risk premium, market inefficiency). 
+4. Zero Filler: NO introductory sentences like "Based on the data..." or "Here is the analysis." Start immediately with the thesis.
+
+CRITICAL RULE: Your absolute final line MUST be exactly [SIGNAL: XX] where XX is the integer probability (0-100) of the specific contract being asked about.
 """
                         res = client.chat.completions.create(
                             model="llama-3.3-70b-versatile",
