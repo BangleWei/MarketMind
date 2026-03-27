@@ -432,7 +432,7 @@ for m in st.session_state.market_data:
                 st.session_state.baseline_prices[sym] = float(current_p)
             else:
                 diff = float(current_p) - baseline
-                if abs(diff) >= 0.01 and sym not in st.session_state.alerts_triggered:
+                if abs(diff) >= 0.001 and sym not in st.session_state.alerts_triggered:
                     direction = "SPIKED" if diff > 0 else "DROPPED"
                     alert_msg = f"🚨 **SYSTEM ALERT:** The `{c['label']}` market probability just {direction} by {abs(diff)*100:.1f}%. Would you like me to run a rapid risk assessment?"
                     st.session_state.conversation_history.append({"role": "assistant", "content": alert_msg})
